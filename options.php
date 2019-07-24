@@ -1,12 +1,17 @@
 <?php
 
 function bs_db_connection_check() {
-    $db = @new mysqli(get_option('bs_db_host'), get_option('bs_db_username'), get_option('bs_db_password'), get_option('bs_db_database'));
+    $db = @new mysqli(
+        sanitize_title(get_option('bs_db_host')),
+        sanitize_title(get_option('bs_db_username')),
+        sanitize_title(get_option('bs_db_password')),
+        sanitize_title(get_option('bs_db_database'))
+    );
     if ($db->connect_error) {
         $class = 'notice-error';
         $message = '数据库连接失败。详细信息：'.$db->connect_error;
     } else {
-        $table = get_option('bs_db_prefix').'users';
+        $table = sanitize_title(get_option('bs_db_prefix')).'users';
         $stmt = $db->prepare("SHOW TABLES LIKE '".$table."'");
         if (! $stmt) {
             $class = 'notice-error';

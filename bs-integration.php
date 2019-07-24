@@ -33,6 +33,8 @@ add_option('bs_pwd_salt');
 add_option('bs_new_user_score', 1000);
 
 function bs_check_auth($user, $email, $password) {
+    $email = sanitize_email($email);
+    $password = sanitize_text_field($password);
     if (! is_email($email)) {
         return $user;
     }
@@ -43,8 +45,15 @@ function bs_check_auth($user, $email, $password) {
         if (! $status || $status == 'ok') {
             return $user;
         } elseif ($status == 'wip') {
-            $db = new mysqli(get_option('bs_db_host'), get_option('bs_db_username'), get_option('bs_db_password'), get_option('bs_db_database'));
-            $stmt = $db->prepare('SELECT `email`, `password` FROM `'.get_option('bs_db_prefix').'users` WHERE `email`=? LIMIT 1');
+            $db = new mysqli(
+                sanitize_title(get_option('bs_db_host')),
+                sanitize_title(get_option('bs_db_username')),
+                sanitize_title(get_option('bs_db_password')),
+                sanitize_title(get_option('bs_db_database'))
+            );
+            $stmt = $db->prepare(
+                'SELECT `email`, `password` FROM `'.sanitize_title(get_option('bs_db_prefix')).'users` WHERE `email`=? LIMIT 1'
+            );
             $stmt->bind_param('s', $email);
             $stmt->execute();
             $stmt->bind_result($bs_email, $bs_password);
@@ -62,7 +71,7 @@ function bs_check_auth($user, $email, $password) {
                         sprintf(
                             /* translators: %s: email address */
                             __('<strong>ERROR</strong>: The password you entered for the email address %s is incorrect.'),
-                            '<strong>'.$email.'</strong>'
+                            '<strong>'.esc_html($email).'</strong>'
                         ).
                         ' <a href="'.wp_lostpassword_url().'">'.
                         __('Lost your password?').
@@ -77,8 +86,13 @@ function bs_check_auth($user, $email, $password) {
         }
     }
 
-    $db = new mysqli(get_option('bs_db_host'), get_option('bs_db_username'), get_option('bs_db_password'), get_option('bs_db_database'));
-    $stmt = $db->prepare('SELECT `email`, `nickname`, `password` FROM `'.get_option('bs_db_prefix').'users` WHERE `email`=? LIMIT 1');
+    $db = new mysqli(
+        sanitize_title(get_option('bs_db_host')),
+        sanitize_title(get_option('bs_db_username')),
+        sanitize_title(get_option('bs_db_password')),
+        sanitize_title(get_option('bs_db_database'))
+    );
+    $stmt = $db->prepare('SELECT `email`, `nickname`, `password` FROM `'.sanitize_title(get_option('bs_db_prefix')).'users` WHERE `email`=? LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $stmt->bind_result($bs_email, $bs_nickname, $bs_password);
@@ -100,7 +114,7 @@ function bs_check_auth($user, $email, $password) {
                     sprintf(
                         /* translators: %s: email address */
                         __('<strong>ERROR</strong>: The password you entered for the email address %s is incorrect.'),
-                        '<strong>'.$email.'</strong>'
+                        '<strong>'.esc_html($email).'</strong>'
                     ).
                     ' <a href="'.wp_lostpassword_url().'">'.
                     __('Lost your password?').
@@ -122,13 +136,18 @@ function sync_to_bs($username, $user) {
         return;
     }
 
-    $db = new mysqli(get_option('bs_db_host'), get_option('bs_db_username'), get_option('bs_db_password'), get_option('bs_db_database'));
-    $stmt = $db->prepare('INSERT INTO `'.get_option('bs_db_prefix').'users` (`email`,`nickname`,`score`,`password`,`ip`,`last_sign_at`,`register_at`) VALUES (?, ?, ?, ?, ?, ?, ?);');
+    $db = new mysqli(
+        sanitize_title(get_option('bs_db_host')),
+        sanitize_title(get_option('bs_db_username')),
+        sanitize_title(get_option('bs_db_password')),
+        sanitize_title(get_option('bs_db_database'))
+    );
+    $stmt = $db->prepare('INSERT INTO `'.sanitize_title(get_option('bs_db_prefix')).'users` (`email`,`nickname`,`score`,`password`,`ip`,`last_sign_at`,`register_at`) VALUES (?, ?, ?, ?, ?, ?, ?);');
     $stmt->bind_param('ssissss', $email, $nickname, $score, $password, $ip, $last_sign_at, $register_at);
     $email = $user->user_email;
     $nickname = $user->user_login;
     $score = (int) get_option('bs_new_user_score');
-    $password = bs_hash_password($_POST['pwd']);
+    $password = bs_hash_password($_POST['pwd']);  // No need to sanitize password here because it will be hashed.
     $ip = '255.255.255.255';
     $last_sign_at = date('Y-m-d H:i:s', time() - 24 * 60 * 60);
     $register_at = date('Y-m-d H:i:s');
@@ -141,15 +160,20 @@ function sync_to_bs($username, $user) {
 add_action('wp_login', 'sync_to_bs', 10, 2);
 
 function bs_sync_password($user_id) {
-    $password = $_POST['pass1'];
+    $password = $_POST['pass1'];  // No need to sanitize password here because it will be hashed.
     if (strlen($password) === 0) {
         return;
     }
 
     $email = get_user_by('ID', $user_id)->user_email;
     $hash = bs_hash_password($password);
-    $db = new mysqli(get_option('bs_db_host'), get_option('bs_db_username'), get_option('bs_db_password'), get_option('bs_db_database'));
-    $stmt = $db->prepare('UPDATE `'.get_option('bs_db_prefix').'users` SET `password`=? WHERE `email`=?');
+    $db = new mysqli(
+        sanitize_title(get_option('bs_db_host')),
+        sanitize_title(get_option('bs_db_username')),
+        sanitize_title(get_option('bs_db_password')),
+        sanitize_title(get_option('bs_db_database'))
+    );
+    $stmt = $db->prepare('UPDATE `'.sanitize_title(get_option('bs_db_prefix')).'users` SET `password`=? WHERE `email`=?');
     $stmt->bind_param('ss', $hash, $email);
     $stmt->execute();
     $stmt->close();
@@ -159,9 +183,14 @@ add_action('personal_options_update', 'bs_sync_password');
 
 function bs_sync_reset_password($user, $password) {
     $email = $user->user_email;
-    $hash = bs_hash_password($password);
-    $db = new mysqli(get_option('bs_db_host'), get_option('bs_db_username'), get_option('bs_db_password'), get_option('bs_db_database'));
-    $stmt = $db->prepare('UPDATE `'.get_option('bs_db_prefix').'users` SET `password`=? WHERE `email`=?');
+    $hash = bs_hash_password($password);  // No need to sanitize password here because it will be hashed.
+    $db = new mysqli(
+        sanitize_title(get_option('bs_db_host')),
+        sanitize_title(get_option('bs_db_username')),
+        sanitize_title(get_option('bs_db_password')),
+        sanitize_title(get_option('bs_db_database'))
+    );
+    $stmt = $db->prepare('UPDATE `'.sanitize_title(get_option('bs_db_prefix')).'users` SET `password`=? WHERE `email`=?');
     $stmt->bind_param('ss', $hash, $email);
     $stmt->execute();
     $stmt->close();
@@ -174,9 +203,14 @@ function bs_check_user_exists($user_id) {
         return $user_id;
     }
 
-    $email = $_POST['user_email'];
-    $db = new mysqli(get_option('bs_db_host'), get_option('bs_db_username'), get_option('bs_db_password'), get_option('bs_db_database'));
-    $stmt = $db->prepare('SELECT `email` FROM `'.get_option('bs_db_prefix').'users` WHERE `email`=? LIMIT 1');
+    $email = sanitize_email($_POST['user_email']);
+    $db = new mysqli(
+        sanitize_title(get_option('bs_db_host')),
+        sanitize_title(get_option('bs_db_username')),
+        sanitize_title(get_option('bs_db_password')),
+        sanitize_title(get_option('bs_db_database'))
+    );
+    $stmt = $db->prepare('SELECT `email` FROM `'.sanitize_title(get_option('bs_db_prefix')).'users` WHERE `email`=? LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $user_id = $stmt->fetch() ? -1 : false;
